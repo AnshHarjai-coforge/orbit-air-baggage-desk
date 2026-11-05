@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(./.env)",
+      "Read(**/.env)",
+      "Bash(cat .env)",
+      "Bash(cat *.env*)",
+      "Bash(head *.env*)",
+      "Bash(tail *.env*)",
+      "Bash(less *.env*)",
+      "Bash(more *.env*)"
+    ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && PY=.venv/bin/python; [ -x \"$PY\" ] || PY=python3; \"$PY\" -m pytest -q >&2; s=$?; if [ $s -eq 0 ] || [ $s -eq 5 ]; then exit 0; fi; echo 'pytest failed: fix the code, not the tests.' >&2; exit 2"
+          }
+        ]
+      }
+    ]
+  }
+}
