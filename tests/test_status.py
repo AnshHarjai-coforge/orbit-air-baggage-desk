@@ -188,3 +188,17 @@ def test_full_lifecycle_history_is_complete_and_ordered(conn):
     ]
     for entry in history[1:]:
         assert all(entry[field] for field in ("old_status", "new_status", "changed_by", "changed_at"))
+
+
+# 10 (optional in the plan)
+def test_unknown_claim_id_rejected(conn):
+    with pytest.raises(claims.ClaimError, match="Claim 999 not found"):
+        claims.get_claim(conn, 999)
+    with pytest.raises(claims.ClaimError, match="Claim 999 not found"):
+        claims.assign_claim(conn, 999, "Ravi", now=T1, actor=ACTOR)
+    with pytest.raises(claims.ClaimError, match="Claim 999 not found"):
+        claims.resolve_claim(conn, 999, now=T1, actor=ACTOR)
+    with pytest.raises(claims.ClaimError, match="Claim 999 not found"):
+        claims.close_claim(conn, 999, now=T1, actor=ACTOR)
+
+    assert conn.execute("SELECT COUNT(*) FROM history").fetchone()[0] == 0
