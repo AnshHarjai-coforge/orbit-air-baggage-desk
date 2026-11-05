@@ -218,6 +218,9 @@ directly with a temporary `db_path`, so no extra CLI flag is needed.
 
 **Before any feature code (on `main`):**
 
+> **Update 2026-11-05:** nothing is pushed directly to `main` anymore. Setup, config and docs changes
+> go on their own branch (for example `chore/...`) and reach `main` through a PR that passes CI.
+
 1. Commit `PLAN.md` on `main`. This commit must come before any commit that touches `claims.py`,
    `db.py`, or `main.py` (rubric P1).
 2. Set up the project on `main`. This setup does not include feature code:
