@@ -202,3 +202,8 @@ def test_unknown_claim_id_rejected(conn):
         claims.close_claim(conn, 999, now=T1, actor=ACTOR)
 
     assert conn.execute("SELECT COUNT(*) FROM history").fetchone()[0] == 0
+
+
+# 11
+def test_get_history_unknown_claim_returns_empty(conn):
+    assert claims.get_history(conn, 999) == []
