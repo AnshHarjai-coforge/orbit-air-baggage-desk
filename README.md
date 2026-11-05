@@ -97,6 +97,7 @@ Decisions made after `PLAN.md` was approved that change or add to it.
 | 2026-11-05 | Stop hook sends Claude back at most 3 times (earlier Plan Change). | Lowered to 1 retry. The hook also exits 0 at the red stage: the last commit is a `test(...)` commit and the working tree is clean. | 3 retries mostly delayed handing a stuck failure back to me, and at the red stage all of them were noise. |
 | 2026-11-05 | Setup commits go directly on `main` (§4). | From now on nothing is pushed directly to `main`. Every change, including chores and docs, goes through a branch and a PR. `main` has branch protection that requires a PR and a passing CI check, and applies to admins too. | Every change to `main` is reviewed and checked by CI. |
 | 2026-11-05 | CI workflow is a stretch goal, added after core work (§8). | Added now, before the feature branches, as `.github/workflows/ci.yml` (STRETCH GOAL 3). pytest exit code 5 ("no tests collected") counts as a pass, as it does in the Stop hook. | Every feature PR gets checked by CI. |
+| 2026-11-05 | `pyproject.toml` has pytest and ruff config (§4). | Added `[tool.ruff.lint.isort] known-first-party = ["claims", "db", "main", "conftest"]` on `feature/schema-and-filing`, in its own commit before the tests. | Ruff sorts imports differently once `claims.py` and `db.py` exist. Without this, the test file would fail lint after implementation, and test files can't be edited. |
 
 ## Agent Log
 
@@ -171,6 +172,32 @@ running pytest, and ruff on any PRs and merge to main."
 - Asked for a plain-language explanation of the hook and of the ruff `known-first-party`
   setting before approving.
 - Chose 1 retry with the red-stage skip, and asked for branch protection.
+
+### `feature/schema-and-filing` (tables, filing, validation, deadlines, list)
+
+**Prompts**
+
+1. "Start feature/schema-and-filing (Linear ANS-5) following PLAN.md §4 and §5 Branch 1 … commit
+   the tests alone. Stop there so I can review before any feature code."
+2. "Merged PR 1, now rebase the feature branch, and start working. The tests are approved."
+
+**What the agent did**
+
+- Wrote `tests/conftest.py` (fixed `NOW`, `ACTOR`, and a fresh SQLite file for each test) and
+  `tests/test_claims.py`, with the 10 planned tests as separate functions.
+- Red check, re-run after rebasing onto the merged CI branch:
+  `E   ModuleNotFoundError: No module named 'claims'` (1 error during collection).
+- Committed the tests alone, then stopped for review. The old Stop hook (3 retries) kept sending
+  it back during the review pause. It didn't write feature code; that led to `chore/ci-and-hook-retries`.
+- Wrote `db.py` (schema with CHECK constraints and a foreign key) and `claims.py` (`ClaimError`,
+  `TIER_HOURS`, `compute_deadline`, `file_claim`, `list_claims`). Result: 10 passed, ruff clean.
+- Checked that `git diff <tests-commit>..HEAD -- tests/` is empty and that `claims.py` never reads
+  the clock.
+
+**What I checked or corrected**
+
+- Reviewed and approved the tests before any feature code.
+- Asked for a plain-language explanation of the ruff `known-first-party` setting (see Plan Changes).
 
 ## Hidden Instruction Check
 
