@@ -23,6 +23,10 @@ python -m pytest tests/test_claims.py     # one file
 ruff check .                              # lint
 ```
 
+CI (`.github/workflows/ci.yml`) runs the same `ruff check .` and `python -m pytest` on every pull
+request to `main` and on every push to `main`. `main` is protected: changes reach it only through a
+pull request whose CI check has passed.
+
 ## Usage
 
 The command line app (`python main.py [--now TIMESTAMP] <command>`) is built on the
@@ -53,7 +57,8 @@ constraint.
   - `Bash(cat .env)` and `Bash(cat|head|tail|less|more|grep *.env*)` block shell commands that
     print it.
 - A Stop hook (`.claude/hooks/run-pytest.sh`) runs pytest whenever Claude tries to finish. If tests
-  fail, it sends Claude back to work, at most 3 times in a row.
+  fail, it sends Claude back to work once. It stays quiet at the red stage (last commit is a
+  `test(...)` commit and nothing has changed since), where failing tests are expected.
 - `.env` holds only a fake key.
 
 **Ignore check (2026-11-05)**
@@ -89,6 +94,9 @@ Decisions made after `PLAN.md` was approved that change or add to it.
 | 2026-11-05 | Deny Bash commands that print `.env`, including `grep` (§4). | `grep` was missing at first. `Bash(grep *.env*)` was added and tested. `more` is also denied. | Close the gap found during the Setup Check. |
 | 2026-11-05 | `.gitignore` adds `*.db`, `*.sqlite`, `*.sqlite3` (§4). | `*.sqlite` was missing at first and was added. `.vscode` is also ignored. | Match the plan. Keep editor settings out of Git. |
 | 2026-11-05 | Not in the plan. | Commits and PRs carry no AI attribution (no Co-Authored-By line). This is a rule in `CLAUDE.md`. | I am the sole author. |
+| 2026-11-05 | Stop hook sends Claude back at most 3 times (earlier Plan Change). | Lowered to 1 retry. The hook also exits 0 at the red stage: the last commit is a `test(...)` commit and the working tree is clean. | 3 retries mostly delayed handing a stuck failure back to me, and at the red stage all of them were noise. |
+| 2026-11-05 | Setup commits go directly on `main` (§4). | From now on nothing is pushed directly to `main`. Every change, including chores and docs, goes through a branch and a PR. `main` has branch protection that requires a PR and a passing CI check, and applies to admins too. | Every change to `main` is reviewed and checked by CI. |
+| 2026-11-05 | CI workflow is a stretch goal, added after core work (§8). | Added now, before the feature branches, as `.github/workflows/ci.yml` (STRETCH GOAL 3). pytest exit code 5 ("no tests collected") counts as a pass, as it does in the Stop hook. | Every feature PR gets checked by CI. |
 
 ## Agent Log
 
@@ -137,6 +145,32 @@ covers the work on `main` before the first branch.
 - **Gaps against the plan:** the setup commit missed `*.sqlite` in `.gitignore` and the `grep`
   deny rule. Both were found later by comparing the files with `PLAN.md` §4, and fixed (see Plan
   Changes and Setup Check).
+
+### `chore/ci-and-hook-retries` (CI workflow, Stop hook retries)
+
+**Prompt**
+
+"I just want 1 retry with the red stage skip … No more direct pushes to main is allowed now.
+Everything must go to main via a PR on another branch. I also want to add a CI file, so we are
+running pytest, and ruff on any PRs and merge to main."
+
+**What the agent did**
+
+- Added `.github/workflows/ci.yml` (STRETCH GOAL 3): ruff and pytest on Python 3.15 for PRs to
+  `main` and pushes to `main`.
+- Changed the Stop hook to 1 retry, and made it skip pytest when the last commit is a `test(...)`
+  commit and the working tree is clean.
+- Simulated the hook against a throwaway checkout of `feature/schema-and-filing`. Results: red
+  stage, exit 0; feature code being written with tests failing, exit 2 then exit 0; branch with
+  no tests, exit 0.
+- Turned on branch protection for `main`: PR required, the `test-and-lint` check required and up
+  to date, applied to admins too.
+
+**What I checked or corrected**
+
+- Asked for a plain-language explanation of the hook and of the ruff `known-first-party`
+  setting before approving.
+- Chose 1 retry with the red-stage skip, and asked for branch protection.
 
 ## Hidden Instruction Check
 
