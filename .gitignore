@@ -1,5 +1,6 @@
 .vscode
 *.db
+*.sqlite
 *.sqlite3
 CLAUDE.local.md
 
