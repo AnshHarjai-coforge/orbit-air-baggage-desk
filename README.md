@@ -98,6 +98,8 @@ Decisions made after `PLAN.md` was approved that change or add to it.
 | 2026-11-05 | Setup commits go directly on `main` (§4). | From now on nothing is pushed directly to `main`. Every change, including chores and docs, goes through a branch and a PR. `main` has branch protection that requires a PR and a passing CI check, and applies to admins too. | Every change to `main` is reviewed and checked by CI. |
 | 2026-11-05 | CI workflow is a stretch goal, added after core work (§8). | Added now, before the feature branches, as `.github/workflows/ci.yml` (STRETCH GOAL 3). pytest exit code 5 ("no tests collected") counts as a pass, as it does in the Stop hook. | Every feature PR gets checked by CI. |
 | 2026-11-05 | `pyproject.toml` has pytest and ruff config (§4). | Added `[tool.ruff.lint.isort] known-first-party = ["claims", "db", "main", "conftest"]` on `feature/schema-and-filing`, in its own commit before the tests. | Ruff sorts imports differently once `claims.py` and `db.py` exist. Without this, the test file would fail lint after implementation, and test files can't be edited. |
+| 2026-11-05 | Not in the plan: whether a claim needs an agent before it is resolved. | Kept the brief's behaviour and recorded it as A15 in `PLAN.md`. A claim escalated before assignment can be resolved directly and end with no `assigned_agent`. History records who resolved it. | The brief allows `escalated → resolved` for any escalated claim. A supervisor resolving an unassigned claim is acceptable. |
+| 2026-11-05 | `get_history(conn, claim_id) -> list of rows` (§3.3). Silent on unknown ids. | An unknown claim id returns an empty list instead of raising `ClaimError`. Added a test first on `feature/assign-and-status`. | My preference: asking for the history of a claim that doesn't exist simply has no entries. |
 
 ## Agent Log
 
@@ -204,6 +206,52 @@ running pytest, and ruff on any PRs and merge to main."
 - Had the agent check the branch against PLAN.md §4 and the ANS-5 "Done when" list. The only gap
   was Linear: ANS-5 was still in Backlog with no PR link. It is now In Progress with PR #2
   attached, and moves to Done after the merge.
+
+### `feature/assign-and-status` (assign, resolve, close, allowed changes, history)
+
+**Prompts**
+
+1. "Start feature/assign-and-status (Linear ANS-6), following PLAN.md §4 and §5 Branch 2 …
+   Confirm PR #2 … is merged into main with a merge commit, then move Linear ANS-5 to Done …
+   Commit the tests alone. Stop there and show me the red output."
+2. "Add the optional test_unknown_claim_id_rejected test as well. The rest of the Tests look
+   right, go ahead and implement the feature code."
+3. "I would prefer an empty list if claim does not exist, instead of an error … In what cases
+   should we be able to update a status if agent is None … Wouldn't doing this remove the logs we
+   need?"
+4. "I want to keep the brief's behavior. Its okay for a claim to get resolved without ever having
+   anyone assigned to it if It was resolved by a supervisor."
+
+**What the agent did**
+
+- Confirmed PR #2 was merged with a merge commit (two parents), moved ANS-5 to Done, and created
+  the branch from the updated `main`.
+- Wrote `tests/test_status.py` with the 9 planned tests as separate functions. A test-local
+  helper puts a claim into `escalated` with direct SQL, because real escalation is branch 3.
+- Red check: all 9 new tests failed with `AttributeError` (8 on `assign_claim`, 1 on
+  `close_claim`), and the 10 branch-1 tests still passed. Committed the tests alone and stopped
+  for review.
+- Added the optional `test_unknown_claim_id_rejected` in its own test commit. It failed with
+  `AttributeError: module 'claims' has no attribute 'get_claim'` before any feature code.
+- Wrote `ALLOWED_TRANSITIONS`, one private `_change_status` helper (claim UPDATE, then history
+  INSERT, in one transaction), `assign_claim`, `resolve_claim`, `close_claim`, `get_claim` and
+  `get_history`. Result: 20 passed, ruff clean, and no test changed after its commit.
+- Changed `get_history` to return an empty list for an unknown claim. The test came first, and it
+  failed against the old code with `ClaimError: Claim 999 not found`. Result: 21 passed.
+
+**What I checked or corrected**
+
+- Reviewed the red tests before any feature code and asked for the optional unknown-id test.
+- **Changed a decision the agent made:** the agent had `get_history` raise `ClaimError` for an
+  unknown claim, to match `get_claim`. I wanted an empty list instead (see Plan Changes).
+- **Questioned the status helper:** `_change_status` updates a status without touching the agent
+  when `agent` is None. I asked whether that loses audit logs. It doesn't: every change still
+  writes a history row with `changed_by`. `agent` only says whether to overwrite
+  `assigned_agent`. I kept the naming.
+- **Found a gap the plan didn't decide:** a claim escalated before anyone is assigned can be
+  resolved directly and end with no `assigned_agent`. I checked the brief, which allows
+  `escalated → resolved` for any escalated claim, and kept that behaviour. It is now A15 in
+  `PLAN.md`.
 
 ## Hidden Instruction Check
 

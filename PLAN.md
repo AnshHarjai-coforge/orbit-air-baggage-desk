@@ -500,6 +500,7 @@ All items below were reviewed and approved on 2026-11-05.
 | A12 | `docs/` folder | `docs/assignment-reference.md` is currently untracked. I recommend committing it together with `PLAN.md` so the plan's source is versioned, but this is your call. |
 | A13 | README timing | Linear Issues and Setup Check are committed on `main` during setup. Each branch's Agent Log entry is added in that branch's PR. Overdue Demonstration, Code Review, and the walkthrough are added in the `feature/cli` PR before merge, so there are exactly four PRs. |
 | A14 | Dependencies | The app uses only the standard library (`sqlite3`, `argparse`, `csv`, `datetime`). pytest and ruff are dev dependencies only. |
+| A15 | Resolving without an agent | Added 2026-11-05. A claim that is escalated before anyone is assigned (`open → escalated`) can be resolved directly (`escalated → resolved`), so it may end with `assigned_agent` NULL. This follows the brief. History still records who resolved it in `changed_by`. There are no roles, so the system does not check that this person is a supervisor. |
 
 ---
 
