@@ -8,7 +8,8 @@
       "Bash(head *.env*)",
       "Bash(tail *.env*)",
       "Bash(less *.env*)",
-      "Bash(more *.env*)"
+      "Bash(more *.env*)",
+      "Bash(grep *.env*)"
     ]
   },
   "hooks": {
