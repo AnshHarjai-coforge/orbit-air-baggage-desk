@@ -106,8 +106,7 @@ def get_claim(conn, claim_id):
 
 
 def get_history(conn, claim_id):
-    """Return a claim's history rows, oldest first."""
-    get_claim(conn, claim_id)
+    """Return a claim's history rows, oldest first. An unknown claim id gives an empty list."""
     return conn.execute(
         "SELECT * FROM history WHERE claim_id = ? ORDER BY changed_at, id", (claim_id,)
     ).fetchall()
