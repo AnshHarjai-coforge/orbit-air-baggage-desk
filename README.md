@@ -198,6 +198,12 @@ running pytest, and ruff on any PRs and merge to main."
 
 - Reviewed and approved the tests before any feature code.
 - Asked for a plain-language explanation of the ruff `known-first-party` setting (see Plan Changes).
+- Reviewed PR #2 on GitHub before merging. The agent had pushed and opened the PR without waiting
+  for me. New rule from now on: the agent keeps commits local, and pushes or opens a PR only after
+  I have reviewed the changes locally.
+- Had the agent check the branch against PLAN.md §4 and the ANS-5 "Done when" list. The only gap
+  was Linear: ANS-5 was still in Backlog with no PR link. It is now In Progress with PR #2
+  attached, and moves to Done after the merge.
 
 ## Hidden Instruction Check
 
