@@ -100,6 +100,9 @@ Decisions made after `PLAN.md` was approved that change or add to it.
 | 2026-11-05 | `pyproject.toml` has pytest and ruff config (§4). | Added `[tool.ruff.lint.isort] known-first-party = ["claims", "db", "main", "conftest"]` on `feature/schema-and-filing`, in its own commit before the tests. | Ruff sorts imports differently once `claims.py` and `db.py` exist. Without this, the test file would fail lint after implementation, and test files can't be edited. |
 | 2026-11-05 | Not in the plan: whether a claim needs an agent before it is resolved. | Kept the brief's behaviour and recorded it as A15 in `PLAN.md`. A claim escalated before assignment can be resolved directly and end with no `assigned_agent`. History records who resolved it. | The brief allows `escalated → resolved` for any escalated claim. A supervisor resolving an unassigned claim is acceptable. |
 | 2026-11-05 | `get_history(conn, claim_id) -> list of rows` (§3.3). Silent on unknown ids. | An unknown claim id returns an empty list instead of raising `ClaimError`. Added a test first on `feature/assign-and-status`. | My preference: asking for the history of a claim that doesn't exist simply has no entries. |
+| 2026-11-06 | One private status-change helper runs the claim UPDATE and history INSERT in a single `with conn:` block (§3.3). | Split into `_apply_status_change` (checks and writes, no commit) and `_change_status` (one transaction around it). `escalate_overdue` wraps all of its claims in one transaction. There is still one transition table and one place that writes a status. | A5 needs one transaction for the whole escalate run. A helper that commits each change by itself can't do that. |
+| 2026-11-06 | Escalation only when overdue is checked by `escalate_overdue` (§2.5, §5 Branch 3). | The overdue check is also in `_apply_status_change`, so no caller can escalate a claim that is not overdue. | The rule sits next to the transition check, rather than relying on each caller. |
+| 2026-11-06 | Rollback test: a trigger fails the history insert for one overdue open claim (§5 Branch 3, test 9). | The test files two overdue claims, and the trigger fails only on the second claim's history row. It asserts both claims are still `open`. | One test proves both the per-change rollback (F6) and the one-transaction-per-run rule (A5). |
 
 ## Agent Log
 
@@ -252,6 +255,58 @@ running pytest, and ruff on any PRs and merge to main."
   resolved directly and end with no `assigned_agent`. I checked the brief, which allows
   `escalated → resolved` for any escalated claim, and kept that behaviour. It is now A15 in
   `PLAN.md`.
+
+### `feature/deadlines-and-escalation` (overdue rule, escalation, rollback)
+
+**Prompts**
+
+1. "Start feature/deadlines-and-escalation (Linear ANS-7), following PLAN.md §4 and §5 Branch 3
+   … Confirm PR #3 … then move Linear ANS-6 to Done … Write tests/test_escalation.py with the 9
+   planned tests as separate functions … Stop there and show me the red output … When I approve
+   the tests, implement is_overdue … and escalate_overdue so escalation goes through the existing
+   _change_status helper and ALLOWED_TRANSITIONS … keep A5 … and A15 in mind. Then do the manual
+   rollback check … Never commit the broken version."
+2. "I reviewed all the tests, and they look good to me. I want you to start the implementation
+   now."
+3. "Add the readme agent log as well. Show me the agent log before you push anything."
+
+**What the agent did**
+
+- Confirmed PR #3 was merged with merge commit `3267d5a`, moved ANS-6 to Done, created the branch
+  from the updated `main`, and moved ANS-7 to In Progress.
+- Wrote `tests/test_escalation.py` with the 9 planned tests as separate functions. The helpers
+  live in that file, so `conftest.py` and the earlier test files are untouched.
+- Red check: all 9 new tests failed with `AttributeError` (3 on `is_overdue`, 6 on
+  `escalate_overdue`), and the 21 earlier tests still passed. Committed the tests alone and
+  stopped for review.
+- Split the status helper in two. `_apply_status_change` is the only code that writes a status:
+  it checks `ALLOWED_TRANSITIONS`, refuses to escalate a claim that is not overdue, updates the
+  claim, then inserts history, and does not commit. `_change_status` wraps it in one transaction
+  for assign, resolve and close.
+- Added `is_overdue` (strict `now > deadline`, comparing datetimes) and `escalate_overdue`. The
+  escalation picks overdue `open`/`assigned` claims in id order and escalates them all in one
+  transaction (A5). It keeps the existing agent (A4) and returns the ids. Result: 30 passed, ruff
+  clean, no test changed after its commit, and `claims.py` never reads the clock.
+- Manual rollback check. Neither broken version was committed:
+
+  | Temporary change | Result |
+  |---|---|
+  | `conn.commit()` right after the claim UPDATE (no transaction) | 1 failed, 29 passed: `test_failed_history_write_rolls_back_claim_change`, `assert 'escalated' == 'open'` |
+  | Restored with `git checkout -- claims.py` | 30 passed |
+  | `escalate_overdue` uses one transaction per claim instead of one per run (breaks A5) | 1 failed, 29 passed: the same test and assertion. The first claim stayed escalated after the second claim's history write failed. |
+  | Restored with `git checkout -- claims.py` | 30 passed, ruff clean |
+
+**What I checked or corrected**
+
+- Reviewed and approved the tests before any feature code. The agent pointed out where they went
+  beyond the plan's wording: test 4 also checks A4, and the rollback test forces the failure on
+  the *second* claim's history row, so it covers A5 as well as F6.
+- Before implementing, the agent flagged that the old `_change_status` committed every change on
+  its own, so a whole escalate run couldn't be one transaction. I approved splitting it into an
+  inner step and a transaction wrapper (see Plan Changes).
+- Checked A15 still holds: `escalated → resolved` is unchanged, and `test_status.py` test 4 still
+  passes.
+- Ran `pytest` myself and reviewed the full code base before asking for this log entry.
 
 ## Hidden Instruction Check
 
