@@ -3,7 +3,7 @@
 No function here reads the system clock: the current time is always passed in as `now`.
 """
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 TIER_HOURS = {"gold": 4, "silver": 24, "standard": 72}
 
@@ -112,32 +112,45 @@ def get_history(conn, claim_id):
     ).fetchall()
 
 
-def _change_status(conn, claim_id, new_status, *, now, actor, agent=None):
-    """The single path for changing a claim's status.
+def is_overdue(deadline, now):
+    """A claim is overdue only when now is strictly later than its deadline."""
+    return now > deadline
 
-    Checks the change against ALLOWED_TRANSITIONS, then updates the claim and inserts its
-    history row in one transaction. The claim update runs first, so if the history insert
-    fails the rollback is what keeps the claim unchanged.
+
+def _apply_status_change(conn, claim_id, new_status, *, now, actor, agent=None):
+    """The single place a claim's status is written. It does not commit.
+
+    Checks the change against ALLOWED_TRANSITIONS (and, for escalation, that the claim is
+    overdue), then updates the claim and inserts its history row. Callers run it inside a
+    transaction. The claim update runs first, so if the history insert fails the rollback is
+    what keeps the claim unchanged.
     """
-    actor = _require_text("actor", actor)
-    old_status = get_claim(conn, claim_id)["status"]
+    claim = get_claim(conn, claim_id)
+    old_status = claim["status"]
     if new_status not in ALLOWED_TRANSITIONS[old_status]:
         raise ClaimError(f"Cannot change claim {claim_id} from {old_status!r} to {new_status!r}")
+    if new_status == "escalated" and not is_overdue(datetime.fromisoformat(claim["deadline"]), now):
+        raise ClaimError(f"Cannot escalate claim {claim_id}: it is not overdue")
 
-    changed_at = _timestamp(now)
-    with conn:
-        if agent is None:
-            conn.execute("UPDATE claims SET status = ? WHERE id = ?", (new_status, claim_id))
-        else:
-            conn.execute(
-                "UPDATE claims SET status = ?, assigned_agent = ? WHERE id = ?",
-                (new_status, agent, claim_id),
-            )
+    if agent is None:
+        conn.execute("UPDATE claims SET status = ? WHERE id = ?", (new_status, claim_id))
+    else:
         conn.execute(
-            "INSERT INTO history (claim_id, old_status, new_status, changed_by, changed_at) "
-            "VALUES (?, ?, ?, ?, ?)",
-            (claim_id, old_status, new_status, actor, changed_at),
+            "UPDATE claims SET status = ?, assigned_agent = ? WHERE id = ?",
+            (new_status, agent, claim_id),
         )
+    conn.execute(
+        "INSERT INTO history (claim_id, old_status, new_status, changed_by, changed_at) "
+        "VALUES (?, ?, ?, ?, ?)",
+        (claim_id, old_status, new_status, actor, _timestamp(now)),
+    )
+
+
+def _change_status(conn, claim_id, new_status, *, now, actor, agent=None):
+    """Change one claim's status and write its history row in one transaction."""
+    actor = _require_text("actor", actor)
+    with conn:
+        _apply_status_change(conn, claim_id, new_status, now=now, actor=actor, agent=agent)
 
 
 def assign_claim(conn, claim_id, agent, *, now, actor):
@@ -154,3 +167,23 @@ def resolve_claim(conn, claim_id, *, now, actor):
 def close_claim(conn, claim_id, *, now, actor):
     """Close a resolved claim. Closed is terminal."""
     _change_status(conn, claim_id, "closed", now=now, actor=actor)
+
+
+def escalate_overdue(conn, *, now, actor):
+    """Escalate every overdue 'open' or 'assigned' claim. Returns the escalated ids.
+
+    The whole run is one transaction (A5): either every overdue claim and its history row is
+    saved, or none is. Escalation keeps the claim's existing agent (A4).
+    """
+    actor = _require_text("actor", actor)
+    candidates = conn.execute(
+        "SELECT id, deadline FROM claims WHERE status IN ('open', 'assigned') ORDER BY id"
+    ).fetchall()
+    overdue_ids = [
+        row["id"] for row in candidates if is_overdue(datetime.fromisoformat(row["deadline"]), now)
+    ]
+
+    with conn:
+        for claim_id in overdue_ids:
+            _apply_status_change(conn, claim_id, "escalated", now=now, actor=actor)
+    return overdue_ids
