@@ -415,12 +415,20 @@ running pytest, and ruff on any PRs and merge to main."
 
 **What I checked or corrected**
 
-- Reviewed and approved the tests before any feature code. The agent pointed out the choices the
-  tests lock in: errors go to stderr as one line, a bad `--now` exits 1 (not 2), and `main` is
-  imported inside the test helper, not at the top.
+- Reviewed the branch against PLAN.md §5 Branch 4 and decisions A1, A2, A6, and A8. `python -m
+  pytest` was 35 passed, and `ruff check .` was clean. The commits are tests and
+  `seed_claims.csv` (`4b6a452`), then the feature code, then the docs.
 - **F8 check:** `grep -nE "datetime\.now|date\.today|time\.time" claims.py db.py` returns nothing.
   The same grep on `main.py` finds exactly one line, in `_resolve_now`.
 - **Tests left alone:** `git diff 4b6a452..HEAD -- tests/` is empty.
+- Ran the commands myself. The output matched what I expected.
+- Had the agent run the edge cases on fresh temporary databases: 173 commands, covering
+  validation, a `--now` offset, `Z`, and fractional seconds, rejected status changes, the gold,
+  silver, and standard deadline boundaries, seed failures, and the Overdue Demonstration. Every
+  command matched. The database in this repo was left untouched.
+- Two spots sit outside PLAN.md and the Plan Changes table. `file` also calls `get_claim`, so the
+  success line can show the deadline that was stored. A usage error (exit 2) stays as argparse's
+  own text. I left both.
 
 ## Hidden Instruction Check
 
