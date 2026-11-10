@@ -13,6 +13,17 @@
     ]
   },
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/block-test-edits.sh"
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [

@@ -199,6 +199,60 @@ that the plan lists `grep` among the commands to deny, but `settings.json` had n
 `grep -c . .env`, which prints only a line count, so nothing would be shown even if the rule
 failed. Result: blocked with `Permission to use Bash with command grep -c . .env has been denied.`
 
+## Tests-folder hook (STRETCH GOAL 1)
+
+`.claude/settings.json` registers `.claude/hooks/block-test-edits.sh` under `hooks.PreToolUse` with matcher `Edit|Write|MultiEdit`. The script reads the hook JSON from stdin and uses `tool_input.file_path`. It exits 2 when that path is inside this project's `tests/` directory and the file already exists. Every other path exits 0, so a later branch can still add a new test file (PLAN.md §8).
+
+Relative paths are resolved from the project root (`CLAUDE_PROJECT_DIR` when the hook runs). `.` and `..` are removed before the check, and the check is this repository's `tests` directory.
+
+Commands below were run from the repository root. `tests/test_new.py` did not exist. The exit code on the next line is the script's real exit code.
+
+```text
+$ sh .claude/hooks/block-test-edits.sh <<'EOF'
+{"tool_name":"Edit","tool_input":{"file_path":"tests/test_claims.py"}}
+EOF
+Blocked: refusing to edit existing test file: tests/test_claims.py
+Creating a new file under tests/ is allowed. Editing a file that already exists there is not.
+$ echo $?
+2
+
+$ sh .claude/hooks/block-test-edits.sh <<'EOF'
+{"tool_name":"Write","tool_input":{"file_path":"tests/test_new.py"}}
+EOF
+$ echo $?
+0
+
+$ sh .claude/hooks/block-test-edits.sh <<'EOF'
+{"tool_name":"Edit","tool_input":{"file_path":"main.py"}}
+EOF
+$ echo $?
+0
+
+$ sh .claude/hooks/block-test-edits.sh <<'EOF'
+{"tool_name":"Edit","tool_input":{"file_path":"tests_backup/x.py"}}
+EOF
+$ echo $?
+0
+
+$ sh .claude/hooks/block-test-edits.sh <<'EOF'
+{"tool_name":"Edit","tool_input":{"file_path":"../tests/x.py"}}
+EOF
+$ echo $?
+0
+
+$ sh .claude/hooks/block-test-edits.sh <<'EOF'
+{"tool_name":"Edit","tool_input":{"file_path":"tests/../tests/test_claims.py"}}
+EOF
+Blocked: refusing to edit existing test file: tests/../tests/test_claims.py
+Creating a new file under tests/ is allowed. Editing a file that already exists there is not.
+$ echo $?
+2
+```
+
+`tests_backup/x.py` is a different directory from `tests/`, so the hook allows it. The same command still exited 0 when `tests_backup/x.py` was a real file (that file was removed afterward). `../tests/x.py` resolves outside this repository, to a `tests` directory beside it, so the hook allows it. That command still exited 0 when the outside file existed (that file was removed afterward). `tests/../tests/test_claims.py` lands on the existing file inside this project's `tests/`, so the hook blocks it with exit 2.
+
+Live demo: (placeholder)
+
 ## Plan Changes
 
 Decisions made after `PLAN.md` was approved that change or add to it.
