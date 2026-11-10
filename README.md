@@ -27,6 +27,20 @@ CI (`.github/workflows/ci.yml`) runs the same `ruff check .` and `python -m pyte
 request to `main` and on every push to `main`. `main` is protected: changes reach it only through a
 pull request whose CI check has passed.
 
+## Docker (STRETCH GOAL 4)
+
+The image uses `python:3.12-slim`, copies the project, and installs `requirements-dev.txt`. The
+default command is `python main.py --help`. `.dockerignore` excludes `.env`, `.venv`, `*.db`,
+`.git`, `__pycache__`, `.pytest_cache`, and `.ruff_cache`, so `.env` is never copied into the image.
+
+```sh
+docker build -t orbit-air-baggage-desk .
+docker run --rm orbit-air-baggage-desk
+docker run --rm orbit-air-baggage-desk python -m pytest
+```
+
+Run the tests in any build of this image with `docker run <image> python -m pytest`.
+
 ## Usage
 
 Run every command from the repository root with the virtual environment active:
