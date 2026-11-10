@@ -389,6 +389,11 @@ running pytest, and ruff on any PRs and merge to main."
    check … fill in the README … Don't push the branch or open a PR until I've reviewed everything
    locally."
 2. "The tests are approved. Start working on the implementation now."
+3. "Okay, I have used these commands and they are giving me the correct output as I expected. I
+   want you to run a subagent as well, and test all kinds of edge cases and play with this CLI
+   and see if the output matches what we are expecting. Give me a report of what it finds with
+   the CLI. I also want the list of commands and their outputs that the subagent used and got
+   from the CLI."
 
 **What the agent did**
 
