@@ -534,5 +534,8 @@ What it shows:
 
 ## Code Review
 
-To be completed after the `feature/cli` pull request is opened: the `/code-review` findings on that
-pull request and the action taken on each.
+`/code-review` was run at the low level on the feature/cli changes before the PR was opened.
+
+| Finding | File/line | What we did |
+|---|---|---|
+| `file_claims` validates again the tuples seed already cleaned, so every row is checked twice. | `claims.py:95`, after `main.py:165` | Kept the second check on purpose and documented it. `file_claims` is public, so it validates its own arguments. Seed still validates first, which is what lets a bad row name its line number. The second `validate_claim` pass is idempotent: stripping passenger and flight again returns the same text, type and tier come back unchanged, and a blank note stays `None`. |

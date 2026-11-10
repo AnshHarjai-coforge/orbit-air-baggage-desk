@@ -95,8 +95,11 @@ def file_claim(conn, passenger, flight, claim_type, tier, note, *, now, actor):
 def file_claims(conn, claims_to_file, *, now, actor):
     """File several claims all-or-nothing. Returns the new claim ids in order.
 
-    Each item is (passenger, flight, claim_type, tier, note). Every item is validated before
-    anything is written, and all inserts share one transaction (A6).
+    Each item is (passenger, flight, claim_type, tier, note). This function validates its own
+    input, then writes every claim in one transaction (A6). A caller that already validated,
+    such as seed (it does so to report the CSV line number), is checked again. That second pass
+    is intentional and idempotent: passenger and flight are already stripped, type and tier are
+    unchanged, and a blank note is already None.
     """
     validated = [validate_claim(*claim) for claim in claims_to_file]
     actor = _require_text("actor", actor)
