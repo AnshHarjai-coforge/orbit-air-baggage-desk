@@ -101,6 +101,7 @@ def _build_parser():
         by_option(command)
 
     commands.add_parser("escalate", help="escalate every overdue open or assigned claim")
+    commands.add_parser("report", help="print open and overdue counts by tier")
 
     history_cmd = commands.add_parser("history", help="show the history of one claim")
     history_cmd.add_argument("claim_id", type=int, metavar="CLAIM_ID")
@@ -114,6 +115,17 @@ def _build_parser():
 
 def _cell(value):
     return "-" if value is None else str(value)
+
+
+def _print_report(counts):
+    """Print open and overdue counts for every tier. Same padding as the list table."""
+    rows = [("TIER", "OPEN", "OVERDUE")]
+    for tier in claims.TIERS:
+        counts_for_tier = counts[tier]
+        rows.append((tier, str(counts_for_tier["open"]), str(counts_for_tier["overdue"])))
+    widths = [max(len(row[i]) for row in rows) for i in range(3)]
+    for row in rows:
+        print("  ".join(cell.ljust(width) for cell, width in zip(row, widths)).rstrip())
 
 
 def _print_claims(rows):
@@ -211,6 +223,9 @@ def _run(args, conn, now):
             print(f"Escalated {len(escalated)} claim(s): {', '.join(map(str, escalated))}")
         else:
             print("No overdue claims to escalate")
+
+    elif args.command == "report":
+        _print_report(claims.report_counts(conn, now=now))
 
     elif args.command == "history":
         claims.get_claim(conn, args.claim_id)  # unknown id -> ClaimError

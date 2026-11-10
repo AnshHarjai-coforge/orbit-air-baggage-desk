@@ -46,6 +46,7 @@ and ignored by Git. To start over, delete it.
 | `resolve` | `resolve CLAIM_ID [--by NAME]` |
 | `close` | `close CLAIM_ID [--by NAME]` |
 | `escalate` | `escalate` |
+| `report` | `report` |
 | `history` | `history CLAIM_ID` |
 | `seed` | `seed PATH [--by NAME]` |
 
@@ -58,6 +59,10 @@ and ignored by Git. To start over, delete it.
   (4 h). **Statuses:** `open`, `assigned`, `escalated`, `resolved`, `closed`.
 - **`seed`** expects a CSV with the header `passenger,flight,type,tier,note`. It checks every row
   before saving anything. If any row is invalid, it reports the line number and loads nothing.
+- **`report`** prints how many claims are open, and how many are overdue, for each tier. Open means
+  status `open`. Overdue means an `open` or `assigned` claim whose deadline is strictly before the
+  current time. Those are the claims `escalate` would act on. A claim exactly at its deadline is
+  not overdue. Resolved, closed, and already escalated claims are not counted as overdue.
 - **Errors** are one line on stderr, starting with `Error:`. Exit codes: `0` success, `1` a rule,
   validation or input error, `2` a usage error (an unknown command or a missing argument).
 
@@ -97,6 +102,36 @@ ID  STATUS  TIER  TYPE  PASSENGER  FLIGHT  AGENT       FILED                DEAD
 
 To load the sample claims: `python main.py seed seed_claims.csv`. Escalation is shown in
 [Overdue Demonstration](#overdue-demonstration).
+
+`report` from a fresh database. Asha's gold deadline is 12:00 and Ben's is 11:59, so at exactly
+12:00 only Ben is overdue. One minute later Asha is overdue too. The silver and standard claims
+are still inside their deadlines.
+
+```text
+$ python main.py --now 2026-11-02T08:00:00 file --passenger "Asha Rao" --flight OA101 --type lost --tier gold
+Filed claim 1 (gold), deadline 2026-11-02T12:00:00
+
+$ python main.py --now 2026-11-02T07:59:00 file --passenger "Ben Cole" --flight OA101 --type lost --tier gold
+Filed claim 2 (gold), deadline 2026-11-02T11:59:00
+
+$ python main.py --now 2026-11-02T08:00:00 file --passenger "Mei Lin" --flight OA214 --type delayed --tier silver
+Filed claim 3 (silver), deadline 2026-11-03T08:00:00
+
+$ python main.py --now 2026-11-02T08:00:00 file --passenger "Priya Nair" --flight OA418 --type lost --tier standard
+Filed claim 4 (standard), deadline 2026-11-05T08:00:00
+
+$ python main.py --now 2026-11-02T12:00:00 report
+TIER      OPEN  OVERDUE
+standard  1     0
+silver    1     0
+gold      2     1
+
+$ python main.py --now 2026-11-02T12:01:00 report
+TIER      OPEN  OVERDUE
+standard  1     0
+silver    1     0
+gold      2     2
+```
 
 ## Linear Issues
 

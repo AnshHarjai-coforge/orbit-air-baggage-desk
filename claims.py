@@ -215,3 +215,23 @@ def escalate_overdue(conn, *, now, actor):
         for claim_id in overdue_ids:
             _apply_status_change(conn, claim_id, "escalated", now=now, actor=actor)
     return overdue_ids
+
+
+# STRETCH GOAL 2
+def report_counts(conn, *, now):
+    """Count open claims, and overdue open or assigned claims, by tier.
+
+    Every tier is included, with zeros when nothing matches. Overdue uses is_overdue, so a claim
+    exactly at its deadline is not overdue. Only open and assigned claims can be overdue: those
+    are the ones escalation would act on. Resolved, closed, and already escalated claims are not.
+    """
+    counts = {tier: {"open": 0, "overdue": 0} for tier in TIERS}
+    rows = conn.execute("SELECT status, tier, deadline FROM claims").fetchall()
+    for row in rows:
+        if row["status"] == "open":
+            counts[row["tier"]]["open"] += 1
+        if row["status"] in ("open", "assigned") and is_overdue(
+            datetime.fromisoformat(row["deadline"]), now
+        ):
+            counts[row["tier"]]["overdue"] += 1
+    return counts
