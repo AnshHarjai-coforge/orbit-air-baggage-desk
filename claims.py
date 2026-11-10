@@ -48,35 +48,63 @@ def compute_deadline(filed_at, tier):
     return filed_at + timedelta(hours=TIER_HOURS[tier])
 
 
-def file_claim(conn, passenger, flight, claim_type, tier, note, *, now, actor):
-    """Validate and file a new claim as 'open'. Returns the new claim id.
+def validate_claim(passenger, flight, claim_type, tier, note):
+    """Apply the filing rules without saving anything.
 
-    The claim row and its filing history entry are written in one transaction.
+    Returns the cleaned values (passenger, flight, claim_type, tier, note), or raises ClaimError.
     """
     passenger = _require_text("passenger", passenger)
     flight = _require_text("flight", flight)
     _require_choice("type", claim_type, CLAIM_TYPES)
     _require_choice("tier", tier, TIERS)
-    actor = _require_text("actor", actor)
     if note is not None and not note.strip():
         note = None
+    return passenger, flight, claim_type, tier, note
 
+
+def _insert_claim(conn, claim, *, now, actor):
+    """Insert one validated claim and its filing history entry. It does not commit."""
+    passenger, flight, claim_type, tier, note = claim
     filed_at = _timestamp(now)
     deadline = _timestamp(compute_deadline(now, tier))
-
-    with conn:
-        cursor = conn.execute(
-            "INSERT INTO claims (passenger, flight, type, tier, status, note, filed_at, deadline) "
-            "VALUES (?, ?, ?, ?, 'open', ?, ?, ?)",
-            (passenger, flight, claim_type, tier, note, filed_at, deadline),
-        )
-        claim_id = cursor.lastrowid
-        conn.execute(
-            "INSERT INTO history (claim_id, old_status, new_status, changed_by, changed_at) "
-            "VALUES (?, NULL, 'open', ?, ?)",
-            (claim_id, actor, filed_at),
-        )
+    cursor = conn.execute(
+        "INSERT INTO claims (passenger, flight, type, tier, status, note, filed_at, deadline) "
+        "VALUES (?, ?, ?, ?, 'open', ?, ?, ?)",
+        (passenger, flight, claim_type, tier, note, filed_at, deadline),
+    )
+    claim_id = cursor.lastrowid
+    conn.execute(
+        "INSERT INTO history (claim_id, old_status, new_status, changed_by, changed_at) "
+        "VALUES (?, NULL, 'open', ?, ?)",
+        (claim_id, actor, filed_at),
+    )
     return claim_id
+
+
+def file_claim(conn, passenger, flight, claim_type, tier, note, *, now, actor):
+    """Validate and file a new claim as 'open'. Returns the new claim id.
+
+    The claim row and its filing history entry are written in one transaction.
+    """
+    claim = validate_claim(passenger, flight, claim_type, tier, note)
+    actor = _require_text("actor", actor)
+    with conn:
+        return _insert_claim(conn, claim, now=now, actor=actor)
+
+
+def file_claims(conn, claims_to_file, *, now, actor):
+    """File several claims all-or-nothing. Returns the new claim ids in order.
+
+    Each item is (passenger, flight, claim_type, tier, note). This function validates its own
+    input, then writes every claim in one transaction (A6). A caller that already validated,
+    such as seed (it does so to report the CSV line number), is checked again. That second pass
+    is intentional and idempotent: passenger and flight are already stripped, type and tier are
+    unchanged, and a blank note is already None.
+    """
+    validated = [validate_claim(*claim) for claim in claims_to_file]
+    actor = _require_text("actor", actor)
+    with conn:
+        return [_insert_claim(conn, claim, now=now, actor=actor) for claim in validated]
 
 
 def list_claims(conn, *, status=None, tier=None):
