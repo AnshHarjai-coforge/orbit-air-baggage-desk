@@ -251,8 +251,6 @@ $ echo $?
 
 `tests_backup/x.py` is a different directory from `tests/`, so the hook allows it. The same command still exited 0 when `tests_backup/x.py` was a real file (that file was removed afterward). `../tests/x.py` resolves outside this repository, to a `tests` directory beside it, so the hook allows it. That command still exited 0 when the outside file existed (that file was removed afterward). `tests/../tests/test_claims.py` lands on the existing file inside this project's `tests/`, so the hook blocks it with exit 2.
 
-Live demo: (placeholder)
-
 ## Plan Changes
 
 Decisions made after `PLAN.md` was approved that change or add to it.
